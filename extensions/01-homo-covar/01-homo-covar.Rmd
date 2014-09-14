@@ -1,0 +1,105 @@
+% Homogeneous covariance among random effects terms
+% Andrey Ziyatdinov
+% 14/09/2014
+
+```{r setup, include = FALSE}
+opts_chunk$set(fig.path = 'figure/', cache.path = 'cache/', echo = TRUE, 
+  cache = FALSE, tidy = FALSE,
+  fig.width = 9, fig.height = 9, dev = 'png', fig.cap = "",
+  warning = FALSE, message = FALSE)
+opts_knit$set(upload.fun = identity)
+```
+
+## About
+
+This report aims to reproduce an example in the article 
+[Fitting Linear Mixed-Effects Models using lme4](http://arxiv.org/abs/1406.5823), Appendix A.1.
+
+The model under study has a form:
+
+```
+respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2)
+```
+
+The model has two random terms, both including a random intercept and slopes.
+Each random term contains a 2x2 covariance matrix.
+The current version of `lme4` does not allows a model, where random terms share the same covariance matrices.
+This example shows such a model thanks to the modular imlementation of the `lme4` package.
+
+The `lme4` package version:
+
+```{r}
+library(lme4)
+packageVersion("lme4")
+```
+
+## Data simulation
+
+```{r, cache = TRUE}
+set.seed(1)
+
+nGrps <- 50
+
+explVar <- data.frame(explVar1 = rnorm(nGrps^2), 
+  explVar2 = rnorm(nGrps^2))
+
+groupFac <- expand.grid(groupFac1 = as.factor(1:nGrps),
+  groupFac2 = as.factor(1:nGrps))
+
+randomIntercept <- expand.grid(randomIntercept1 = rnorm(nGrps),
+  randomIntercept2 = rnorm(nGrps))
+  
+rnmdSlope <- expand.grid(randomSlope1 = rnorm(nGrps),
+  randomSlope2 = rnorm(nGrps)) - randomIntercept
+  
+linearPredictor <- apply(randomIntercept + rnmdSlope*explVar, 1, sum)
+
+residError <- rnorm(nGrps^2)
+
+respVar <- linearPredictor + residError
+
+dat <- data.frame(respVar, explVar, groupFac)
+
+dim(dat)
+head(dat)
+```
+
+## Default model
+
+```{r, cache = TRUE}
+mod1 <- lmer(respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2), dat)
+mod1
+```
+
+The `theta` model parameters are (expected to be of length `6`):
+
+```
+round(mod1@theta, 2)
+```
+
+The length of the vector of the random effects is (expected to be: 2 terms x 50 group levels x (slope + intercept) = `200`):
+
+```{r}
+length(mod1@u)
+```
+
+The relative covariance factor `Lambda`:
+
+```{r}
+dim(mod1@pp$Lambdat)
+```
+
+```{r}
+mod1@pp$Lambdat[1:5, 1:5]
+```
+
+
+The number of non-zero elements in this matrix:
+
+```{r}
+length(mod1@pp$Lind)
+```
+
+
+
+
