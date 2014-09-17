@@ -10,6 +10,40 @@ opts_chunk$set(fig.path = 'figure/', cache.path = 'cache/', echo = TRUE,
 opts_knit$set(upload.fun = identity)
 ```
 
+```{r, warning = FALSE, message = FALSE}
+library(ascii)
+```
+
+```{r}
+output.HTML <- TRUE
+
+my_ascii <- function(x, ...) 
+{
+  require(ascii)
+
+  if(output.HTML) {
+    y <- capture.output(print(ascii(x, ...)))
+
+    cat("\n")
+    cat(writeLines(y))
+    cat("\n")
+  } else {
+
+    y <- capture.output(print(ascii(x, ...), type = "org"))
+    # substitute + with | for table markup
+    # TODO: modify regex so that only + signs in markup,
+    #   like -+- are substituted
+    y <- gsub("[+]", "|", y)
+
+    cat("\n")
+    cat(writeLines(y))
+    cat("\n")
+  }    
+
+  return(invisible())
+}
+```
+
 ## About
 
 This report aims to reproduce an example in the article 
@@ -102,7 +136,7 @@ length(mod1@pp$Lind)
 
 ### Modular call
 
-```{r}
+```{r, cache = TRUE}
 parsedFormula <- lFormula(formula = respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2),
   data = dat)
 
@@ -119,4 +153,66 @@ mod2 <- mkMerMod(rho = environment(devianceFunction),
 ```{r}
 mod2
 ```
+
+## Extension
+
+### Modular calls
+
+```{r}
+lfHetero <- lfHomo <- lFormula(respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2), dat, REML = FALSE)
+  
+if(length(pRE <- unique(sapply(cnms <- lfHomo$reTrms$cnms, length))) > 1L) {
+  stop("each random effects term must have the same number\n",
+    "of model matrix columns for a homogeneous structure")
+}
+```
+
+```{r}
+p <- ncol(lfHomo$X)
+nth <- choose(pRE + 1, 2)
+n_trms <- length(cnms)
+```
+
+```{r}
+tab <- ldply(1:3, function(pRE) data.frame(num_var_random_term = pRE, length_theta = choose(pRE + 1, 2)))
+tab <- data.frame(tab, theta_names = c("sigma", "2 sigmas, 1 rho", "3 sigmas, 3 rhos"))
+tab
+```
+
+```{r}
+lfHomo$reTrms <- within(lfHomo$reTrms, {
+  theta <- theta[1:nth]
+  lower <- lower[1:nth]
+  Lind <- rep(1:nth, length = length(lfHomo$reTrms$Lambdat@x))
+})
+```
+
+```{r}
+tab <- data.frame(length_theta = c(length(lfHetero$reTrms$theta), length(lfHomo$reTrms$theta)), 
+  length_lower = c(length(lfHetero$reTrms$lower), length(lfHomo$reTrms$lower)),
+  unique_Lind = c(paste(unique(lfHetero$reTrms$Lind), collapse = ", "), 
+    paste(unique(lfHomo$reTrms$Lind), collapse = ", ")))
+tab
+```
+
+### `homoLmer` function
+
+```{r}
+homoLmer <- function(formula, data, use.mkMerMod = FALSE) 
+{
+  mc <- match.call()
+
+  lfHetero <- lfHomo <- lFormula(formula, data = data, REML = FALSE)
+  
+  if(length(pRE <- unique(sapply(cnms <- lfHomo$reTrms$cnms, length))) > 1L) {
+    stop("each random effects term must have the same number\n",
+      "of model matrix columns for a homogeneous structure")
+  }
+}
+```
+
+```{r}
+mod4 <- homoLmer(respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2), dat)
+```
+
 
