@@ -100,6 +100,23 @@ The number of non-zero elements in this matrix:
 length(mod1@pp$Lind)
 ```
 
+### Modular call
 
+```{r}
+parsedFormula <- lFormula(formula = respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2),
+  data = dat)
 
+devianceFunction <- do.call(mkLmerDevfun, parsedFormula)
+
+optimizerOutput <- optimizeLmer(devianceFunction)
+
+mod2 <- mkMerMod(rho = environment(devianceFunction),
+  opt = optimizerOutput,
+  reTrms = parsedFormula$reTrms,
+  fr = parsedFormula$fr)
+```
+
+```{r}
+mod2
+```
 

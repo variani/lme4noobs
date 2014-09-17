@@ -4,7 +4,6 @@
 
 
 
-
 ## About
 
 This report aims to reproduce an example in the article 
@@ -30,9 +29,8 @@ packageVersion("lme4")
 ```
 
 ```
-## [1] '1.1.7'
+## [1] '1.1.8'
 ```
-
 
 ## Data simulation
 
@@ -83,7 +81,6 @@ head(dat)
 ## 6 -3.6511  -0.8205   1.1598         6         1
 ```
 
-
 ## Default model
 
 
@@ -110,7 +107,6 @@ mod1
 ##     -0.0487
 ```
 
-
 The `theta` model parameters are (expected to be of length `6`):
 
 ```
@@ -128,7 +124,6 @@ length(mod1@u)
 ## [1] 200
 ```
 
-
 The relative covariance factor `Lambda`:
 
 
@@ -139,7 +134,6 @@ dim(mod1@pp$Lambdat)
 ```
 ## [1] 200 200
 ```
-
 
 
 ```r
@@ -157,7 +151,6 @@ mod1@pp$Lambdat[1:5, 1:5]
 ```
 
 
-
 The number of non-zero elements in this matrix:
 
 
@@ -169,7 +162,41 @@ length(mod1@pp$Lind)
 ## [1] 300
 ```
 
+### Modular call
 
 
+```r
+parsedFormula <- lFormula(formula = respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2),
+  data = dat)
 
+devianceFunction <- do.call(mkLmerDevfun, parsedFormula)
+
+optimizerOutput <- optimizeLmer(devianceFunction)
+
+mod2 <- mkMerMod(rho = environment(devianceFunction),
+  opt = optimizerOutput,
+  reTrms = parsedFormula$reTrms,
+  fr = parsedFormula$fr)
+```
+
+
+```r
+mod2
+```
+
+```
+## Linear mixed model fit by REML ['lmerMod']
+## REML criterion at convergence: 7908
+## Random effects:
+##  Groups    Name        Std.Dev. Corr 
+##  groupFac1 (Intercept) 0.92          
+##            explVar1    1.47     -0.80
+##  groupFac2 (Intercept) 1.03          
+##            explVar2    1.26     -0.74
+##  Residual              1.01          
+## Number of obs: 2500, groups:  groupFac1, 50; groupFac2, 50
+## Fixed Effects:
+## (Intercept)  
+##     -0.0487
+```
 
