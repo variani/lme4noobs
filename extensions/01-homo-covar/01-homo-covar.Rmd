@@ -10,11 +10,11 @@ opts_chunk$set(fig.path = 'figure/', cache.path = 'cache/', echo = TRUE,
 opts_knit$set(upload.fun = identity)
 ```
 
-```{r, warning = FALSE, message = FALSE}
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
 library(ascii)
 ```
 
-```{r}
+```{r, echo = FALSE}
 output.HTML <- TRUE
 
 my_ascii <- function(x, ...) 
@@ -67,9 +67,52 @@ library(lme4)
 packageVersion("lme4")
 ```
 
+### Include
+
+```{r}
+library(plyr)
+```
+
+
+## Summary
+
+Steps to implement an homogeneous extension of `lmer`:
+
+* Bear in mind two models, a seed model `Hetero` and a model `Homo` to be extended.
+  * On the first phase, you will modify the seed object.
+    The final results comes from the optimization Step 3,
+    which holds a solution, but it is not intended for exploring the model output (LRT tests, df, etc).
+  * On the second phase, you will need to modify the optimized model somehow back, 
+    in order to emulate the `lmer` structure, as given in the `Hetero` object.
+* For a better understanding of manipulation with the model parameters,
+  write down the model in a matrix form and get know all the model paraemeters.
+  * For the `Hetero` model: two random effect terms (`n_trms` variable),
+    each term has two variables `pRE`, each term has three parameters types are `sigma_1_i`, `sigma_2_i`, `rho_i`,
+    where `i = 1, 2`. 
+  * For the `Homo` model: two random effect terms (`n_trms` variable),
+    each term has two variables `pRE`, two term share three model parameters types are `sigma_1`, `sigma_2`, `rho`.
+* Fit the `Hetero` model and pass through the relevant matrices, looking at their structure and their dimensions.
+* The **key** trick goes on Step 1 of parsing the formula.
+  * See section 2.3 in the `lme4` article.
+  * The changes affect three variables stored in `lfHomo$reTrms`:
+      * `theta`: vector now has 3 values (not 6)
+      * `lower`: vector now has 3 values (not 6)
+      * `Lind`: vector now has 3 unique values (not 6)
+  * The last modification `Lind` defines a new mapping operation,
+    when updating the covariance factor.
+* The Steps 2 and 3 (deviance function and optimization) 
+  are performed as for the `Hetero` model.
+* The Step 4 (output) includes two parts.
+  * A new deviance function `devf0` is created for the `Hetero` model.
+    The solution (`theta` values saved the `opt` object) 
+    is passted to the environment of the `devf0` funcion.
+  * A special S3 class `homoLmerMod` is created
+    with a corrected computation `logLik`.
+  
+
 ## Data simulation
 
-```{r, cache = TRUE}
+```{r dat, cache = TRUE}
 set.seed(1)
 
 nGrps <- 50
@@ -100,7 +143,7 @@ head(dat)
 
 ## Default model
 
-```{r, cache = TRUE}
+```{r mod1, cache = TRUE}
 mod1 <- lmer(respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2), dat)
 mod1
 ```
@@ -136,7 +179,7 @@ length(mod1@pp$Lind)
 
 ### Modular call
 
-```{r, cache = TRUE}
+```{r mod2, cache = TRUE}
 parsedFormula <- lFormula(formula = respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2),
   data = dat)
 
@@ -157,6 +200,8 @@ mod2
 ## Extension
 
 ### Modular calls
+
+Step 1: parse formula
 
 ```{r}
 lfHetero <- lfHomo <- lFormula(respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2), dat, REML = FALSE)
@@ -195,10 +240,46 @@ tab <- data.frame(length_theta = c(length(lfHetero$reTrms$theta), length(lfHomo$
 tab
 ```
 
+Step 2 and 3: deviance function and its optimization.
+
+```{r mod3_opt, cache = TRUE}
+devf <- do.call(mkLmerDevfun, lfHomo)
+opt <- optimizeLmer(devf)
+```
+
+Step 4: output object
+
+```{r}
+opt$par
+
+th <- rep(opt$par, n_trms)
+devf0 <- do.call(mkLmerDevfun, lfHetero)
+devf0(opt$par <- th)
+
+opt$par
+```
+
+```{r}
+setClass("homoLmerMod", representation(thetaUnique = "numeric"), contains = "lmerMod")
+
+logLik.homoLmerMod <- function(object, ...) {
+  ll <- lme4:::logLik.merMod(object, ...)
+  attr(ll, "df") <- length(object@beta) +
+  length(object@thetaUnique) +
+  object@devcomp[["dims"]][["useSc"]]
+  return(ll)
+}
+
+refitML.homoLmerMod <- function(object, newresp, ...) {
+  if(!isREML(object) && missing(newresp)) return(object)
+  stop("can't refit homoLmerMod objects yet")
+}
+```
+
 ### `homoLmer` function
 
 ```{r}
-homoLmer <- function(formula, data, use.mkMerMod = FALSE) 
+homoLmer <- function(formula, data, use.mkMerMod = FALSE, test.envir = FALSE) 
 {
   mc <- match.call()
 
@@ -208,11 +289,85 @@ homoLmer <- function(formula, data, use.mkMerMod = FALSE)
     stop("each random effects term must have the same number\n",
       "of model matrix columns for a homogeneous structure")
   }
+
+  p <- ncol(lfHomo$X)
+  nth <- choose(pRE + 1, 2)
+  n_trms <- length(cnms)
+  
+  lfHomo$reTrms <- within(lfHomo$reTrms, {
+    theta <- theta[1:nth]
+    lower <- lower[1:nth]
+    Lind <- rep(1:nth, length = length(lfHomo$reTrms$Lambdat@x))
+  })
+  
+  devf <- do.call(mkLmerDevfun, lfHomo)
+  opt <- optimizeLmer(devf)
+  
+  th <- rep(opt$par, n_trms)
+  devf0 <- do.call(mkLmerDevfun, lfHetero)
+  if(!test.envir) {
+    devf0(opt$par <- th)
+  } else {
+    opt$par <- th
+  }
+
+  mkMerMod(rho = environment(devf0),
+    opt = opt,
+    reTrms = lfHetero$reTrms,
+    fr = lfHetero$fr)
 }
 ```
 
-```{r}
+```{r mod4, cache = T}
 mod4 <- homoLmer(respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2), dat)
 ```
 
+```{r mod5}
+mod5 <- as(mod4, "homoLmerMod")
+mod5@thetaUnique <- mod4@theta[1:3]
+```
 
+```{r}
+c(length(mod4@beta) + length(mod4@theta) + mod4@devcomp[["dims"]][["useSc"]],
+  length(mod5@beta) + length(mod5@theta) + mod5@devcomp[["dims"]][["useSc"]],
+  length(mod5@beta) + length(mod5@thetaUnique) + mod5@devcomp[["dims"]][["useSc"]])
+```
+
+The value of the likelihood is the same, and the difference between the models is in `df`.
+```{r}
+logLik(mod4)
+logLik(mod5)
+```
+
+```{r}
+mod4
+mod5
+```  
+
+### Testing assignment in `devfun0` environment
+
+```{r, cache = TRUE}
+mod6 <- homoLmer(respVar ~ 1 + (explVar1|groupFac1) + (explVar2|groupFac2), dat, test.envir = TRUE)
+mod6 <- as(mod6, "homoLmerMod")
+mod6@thetaUnique <- mod6@theta[1:3]
+```
+
+```{r}
+mod5
+mod6
+```  
+
+## Observations and conclusions
+
+* It was shown how to extend the `lmer` call via 4 modular steps.
+* In general, methods of the output module (Step 4) must be revised and rewritten with a user-defined control.
+  * In the `homoLmerMod` expample, the `logLik` methods does the correct job,
+    that can further be used in ANOVA tests.
+  * It seems that the degree of freedom is under control, but it is not so.
+    For example, look at the print results for two `mod4` and `mod5` models.
+    The residual `df` is `2500 - 8 = 2492` for both,
+    while this value has to be `2500 - 5 = 2495` for the `mod5` model.
+* Unexplained operations.
+  * `devf0(opt$par <- th)`: installing the parameters in the environment of the unmodified deviance function,
+  as said the `lme4` article.    
+    
