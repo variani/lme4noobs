@@ -1,0 +1,93 @@
+% Homogeneous variance over random effects
+% Andrey Ziyatdinov
+% 29/09/2014
+
+```{r setup, include = FALSE}
+opts_chunk$set(fig.path = 'figure/', cache.path = 'cache/', echo = TRUE, 
+  cache = FALSE, tidy = FALSE,
+  fig.width = 9, fig.height = 9, dev = 'png', fig.cap = "",
+  warning = FALSE, message = FALSE)
+opts_knit$set(upload.fun = identity)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+library(ascii)
+```
+
+```{r, echo = FALSE}
+output.HTML <- TRUE
+
+my_ascii <- function(x, ...) 
+{
+  require(ascii)
+
+  if(output.HTML) {
+    y <- capture.output(print(ascii(x, ...)))
+
+    cat("\n")
+    cat(writeLines(y))
+    cat("\n")
+  } else {
+
+    y <- capture.output(print(ascii(x, ...), type = "org"))
+    # substitute + with | for table markup
+    # TODO: modify regex so that only + signs in markup,
+    #   like -+- are substituted
+    y <- gsub("[+]", "|", y)
+
+    cat("\n")
+    cat(writeLines(y))
+    cat("\n")
+  }    
+
+  return(invisible())
+}
+```
+
+## About
+
+This report explores an example in the article 
+[Fitting Linear Mixed-Effects Models using lme4](http://arxiv.org/abs/1406.5823), Appendix A.2.
+
+The model under study:
+
+```
+Reaction ~ Days + (Days|Subject)
+```
+
+The `lme4` package version:
+
+```{r}
+library(lme4)
+packageVersion("lme4")
+```
+
+### Include
+
+```{r}
+library(plyr)
+```
+
+
+## Default model
+
+Modular call:
+
+```{r mod1, cache = TRUE}
+parsedFormula <- lFormula(formula = Reaction ~ Days + (Days|Subject),
+  data = sleepstudy)
+
+devianceFunction <- do.call(mkLmerDevfun, parsedFormula)
+
+optimizerOutput <- optimizeLmer(devianceFunction)
+
+mod1 <- mkMerMod(rho = environment(devianceFunction),
+  opt = optimizerOutput,
+  reTrms = parsedFormula$reTrms,
+  fr = parsedFormula$fr)
+```
+
+```{r}
+mod1
+```
+
