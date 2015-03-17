@@ -1,0 +1,49 @@
+---
+title: "update method of lme4 R package"
+author: "Andrey Ziyatdinov"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: united
+    toc: true
+    keep_md: true
+---
+
+
+## Include
+
+```{r inc}
+library(lme4) 
+```
+
+```{r}
+library(microbenchmark)
+library(plyr)
+library(ggplot2)
+```
+
+## Basic model
+
+```{r m1, cache = TRUE}
+m1 <- lmer(Reaction ~ Days + (Days | Subject), sleepstudy)
+m2 <- update(m1, Reaction ~ Days + (1|Subject))
+m3 <- update(m1, Reaction ~ (1|Subject))
+```
+
+```{r bench1, cache = TRUE}
+tab <- microbenchmark(
+  m1 = lmer(Reaction ~ Days + (Days | Subject), sleepstudy),  
+  m2 = lmer(Reaction ~ Days + (1 | Subject), sleepstudy),
+  m3 = lmer(Reaction ~ (1 | Subject), sleepstudy),  
+  m2.updated = update(m1, Reaction ~ Days + (1|Subject)),
+  m3.updated = update(m1, Reaction ~ (1|Subject)),
+  times = 100)
+```
+
+```{r print_tab}
+tab
+```
+
+```{r plot_tab}
+autoplot(tab)
+```
