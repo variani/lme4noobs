@@ -13,10 +13,10 @@ pdat <- mutate(pdat,
 
 k2 <- solarKinship2(pdat)
 
-#ids <- with(pdat, ID[!is.na(AGE)])
-#pdat <- subset(pdat, ID %in% ids)
-#ind <- which(rownames(k2) %in% ids)
-#k2 <- k2[ind, ind]
+ids <- with(pdat, ID[!is.na(tr_FXI)])
+pdat <- subset(pdat, ID %in% ids)
+ind <- which(rownames(k2) %in% ids)
+k2 <- k2[ind, ind]
 
 ### polygenic
 mod <- solaris(tr_FXI ~ AGE + (1|HHID) + (1|ID), pdat, 
@@ -38,18 +38,28 @@ run_assoc <- function(dat, genocov.files)
   out <- llply(1:B, function(i) {
     genocov.file <- genocov.files[i]
     
-    sdat <- read.table(genocov.file, sep = ",", header = TRUE)
+    row1 <- read.table(genocov.file, sep = ",", header = TRUE, nrows = 1)
+    ncols <- ncol(row1)
+    colClasses <- rep(as.character(NA), ncols)
+    colClasses[1] <- "character"
+
+    sdat <- read.table(genocov.file, sep = ",", header = TRUE, colClasses = colClasses)
     sdat <- rename(sdat, c(id = "ID"))
     snp.names <- grep("^snp_", names(sdat), value = TRUE)
+    snp.names <- snp.names[1:2]
     
-    dat2 <- merge(dat, sdat, by = "ID")
-
+    dat2 <- merge(dat, sdat, by = "ID", all.x = TRUE, all.y = FALSE)
+    #for(snp in snp.names) {
+    #  x <- dat2[, snp]
+    #  dat2[is.na(x), snp] <- mean(x, na.rm = TRUE)
+    #}
+    
     f <- createFormula("tr_FXI", c("AGE"), c("(1|HHID)", "(1|ID)")) 
-    mod2 <- solaris(f, dat2, 
-      relmat = list(ID = k2), control = lmerControl)
-    
+    mod2 <- solaris(f, dat2, relmat = list(ID = k2), control = lmerControl)
+    #f <- createFormula("tr_FXI", c("AGE"), c("(1|HHID)")) 
+    #mod2 <- lmer(f, dat2, control = lmerControl)
         
-    f.snps <- as.formula(paste("~", paste(snp.names, collapse = "+")))
+    f.snps <- as.formula(paste("~", paste(c("AGE", snp.names), collapse = "+")))
     
     list(batch.index = i, add1 = add1(mod2, f.snps, test = "Chisq"))
   })   
