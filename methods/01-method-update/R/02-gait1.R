@@ -31,7 +31,7 @@ createFormula <- function(resp, fixed, rand) {
   f
 }
 
-run_assoc <- function(dat, genocov.files)
+run_assoc <- function(dat, genocov.files, REML = FALSE)
 {
   B <- length(genocov.files)
   
@@ -46,7 +46,7 @@ run_assoc <- function(dat, genocov.files)
     sdat <- read.table(genocov.file, sep = ",", header = TRUE, colClasses = colClasses)
     sdat <- rename(sdat, c(id = "ID"))
     snp.names <- grep("^snp_", names(sdat), value = TRUE)
-    snp.names <- snp.names[1:2]
+    snp.names <- snp.names[1:50]
     
     dat2 <- merge(dat, sdat, by = "ID", all.x = TRUE, all.y = FALSE)
     #for(snp in snp.names) {
@@ -55,7 +55,7 @@ run_assoc <- function(dat, genocov.files)
     #}
     
     f <- createFormula("tr_FXI", c("AGE"), c("(1|HHID)", "(1|ID)")) 
-    mod2 <- solaris(f, dat2, relmat = list(ID = k2), control = lmerControl)
+    mod2 <- solaris(f, dat2, relmat = list(ID = k2), control = lmerControl, REML = REML)
     #f <- createFormula("tr_FXI", c("AGE"), c("(1|HHID)")) 
     #mod2 <- lmer(f, dat2, control = lmerControl)
         
