@@ -1,3 +1,7 @@
+# @ https://github.com/lme4/lme4/issues/55
+# @ https://github.com/lme4/lme4/issues/194
+
+
 ### inc
 library(gait)
 library(solaris)
