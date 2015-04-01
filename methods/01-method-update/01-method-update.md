@@ -7,7 +7,8 @@ Andrey Ziyatdinov
 
 
 ```r
-library(lme4) 
+library(lme4)
+library(solaris)
 ```
 
 
@@ -53,12 +54,12 @@ tab
 ```
 ## Unit: milliseconds
 ##               expr      min       lq     mean   median       uq      max
-##                 m1 41.09880 41.31964 41.39687 41.38564 41.50877 41.68065
-##        m1.opt.none 33.86017 33.96102 35.25992 34.29755 37.46391 38.40831
-##          m1.update 41.52630 41.70893 42.94529 42.13532 45.10790 45.21790
-##           m1.start 39.62557 39.71818 40.41815 39.95414 40.03770 44.03654
-##          m1.start2 39.47024 39.54944 40.65966 39.75572 39.88887 49.11917
-##  m1.start.opt.none 32.84936 33.01097 34.66532 33.34632 36.52874 38.57739
+##                 m1 48.58241 49.56911 50.44976 50.00865 50.88206 54.18908
+##        m1.opt.none 40.64339 41.11479 43.28585 41.80860 46.32470 49.90008
+##          m1.update 49.44773 50.06004 52.78024 52.35340 54.89347 57.94328
+##           m1.start 48.39947 48.81600 50.73314 49.68118 53.13262 54.52046
+##          m1.start2 47.48920 48.21813 49.26506 49.02211 49.76483 52.64671
+##  m1.start.opt.none 39.76549 39.99929 43.10869 42.90461 45.37880 48.79881
 ##  neval
 ##     10
 ##     10
@@ -177,4 +178,119 @@ getME(mod2, "theta")
 ```
 ## Subject.(Intercept) 
 ##            1.197882
+```
+
+## `relmatLmer` function
+
+### Benchmarking 2
+
+
+```r
+f1 <- Reaction ~ Days + (1 | Subject)
+m1 <- lmer(f1, sleepstudy)
+m2 <- relmatLmer(f1, sleepstudy)
+
+tab2 <- microbenchmark(
+  m1 = lmer(f1, sleepstudy),
+  m1.opt.none = lmer(f1, sleepstudy, control = lmerControl(optimizer = "none")),
+  m1.start = update(m1, f1, start = start.m1),
+  m2 = relmatLmer(f1, sleepstudy),
+  m2.update = update(m2, f1),
+  m2.start = relmatLmer(f1, sleepstudy, start = start.m1),
+  m2.update.start = update(m2, f1, start = start.m1),
+  m2.opt.none.start = relmatLmer(f1, sleepstudy, control = lmerControl(optimizer = "none"), start = start.m1),
+  m2.update.opt.none.start = update(m2, f1, control = lmerControl(optimizer = "none"), start = start.m1),
+  times = 10)
+```
+
+
+```r
+autoplot(tab2)
+```
+
+![](01-method-update_files/figure-html/plot_tab2-1.png) 
+
+### Model comparison
+
+
+```r
+system.time(mod1 <- lmer(f1, sleepstudy))
+```
+
+```
+##    user  system elapsed 
+##   0.049   0.000   0.049
+```
+
+```r
+system.time(mod2 <- relmatLmer(f1, sleepstudy, control = lmerControl(optimizer = "none"), start = start.m1))
+```
+
+```
+##    user  system elapsed 
+##    0.04    0.00    0.04
+```
+
+```r
+system.time(mod3 <- update(mod1, f1, control = lmerControl(optimizer = "none"), start = start.m1))
+```
+
+```
+##    user  system elapsed 
+##   0.041   0.000   0.041
+```
+
+```r
+# check
+fixef(mod1)
+```
+
+```
+## (Intercept)        Days 
+##   251.40510    10.46729
+```
+
+```r
+fixef(mod2)
+```
+
+```
+## (Intercept)        Days 
+##   251.40510    10.46729
+```
+
+```r
+fixef(mod3)
+```
+
+```
+## (Intercept)        Days 
+##   251.40510    10.46729
+```
+
+```r
+getME(mod1, "theta")
+```
+
+```
+## Subject.(Intercept) 
+##            1.197882
+```
+
+```r
+getME(mod2, "theta")
+```
+
+```
+## Subject.(Intercept) 
+##            1.197882
+```
+
+```r
+getME(mod3, "theta")
+```
+
+```
+## Subject.(Intercept) 
+##                   1
 ```

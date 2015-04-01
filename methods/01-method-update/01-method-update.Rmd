@@ -13,7 +13,8 @@ output:
 ## Include
 
 ```{r inc}
-library(lme4) 
+library(lme4)
+library(solaris)
 ```
 
 ```{r}
@@ -98,4 +99,46 @@ fixef(mod1)
 fixef(mod2)
 getME(mod1, "theta")
 getME(mod2, "theta")
+```
+
+## `relmatLmer` function
+
+### Benchmarking 2
+
+```{r bench2, cache = TRUE}
+f1 <- Reaction ~ Days + (1 | Subject)
+m1 <- lmer(f1, sleepstudy)
+m2 <- relmatLmer(f1, sleepstudy)
+
+tab2 <- microbenchmark(
+  m1 = lmer(f1, sleepstudy),
+  m1.opt.none = lmer(f1, sleepstudy, control = lmerControl(optimizer = "none")),
+  m1.start = update(m1, f1, start = start.m1),
+  m2 = relmatLmer(f1, sleepstudy),
+  m2.update = update(m2, f1),
+  m2.start = relmatLmer(f1, sleepstudy, start = start.m1),
+  m2.update.start = update(m2, f1, start = start.m1),
+  m2.opt.none.start = relmatLmer(f1, sleepstudy, control = lmerControl(optimizer = "none"), start = start.m1),
+  m2.update.opt.none.start = update(m2, f1, control = lmerControl(optimizer = "none"), start = start.m1),
+  times = 10)
+```
+
+```{r plot_tab2}
+autoplot(tab2)
+```
+
+### Model comparison
+
+```{r mod_comp_2, cache = TRUE}
+system.time(mod1 <- lmer(f1, sleepstudy))
+system.time(mod2 <- relmatLmer(f1, sleepstudy, control = lmerControl(optimizer = "none"), start = start.m1))
+system.time(mod3 <- update(mod1, f1, control = lmerControl(optimizer = "none"), start = start.m1))
+
+# check
+fixef(mod1)
+fixef(mod2)
+fixef(mod3)
+getME(mod1, "theta")
+getME(mod2, "theta")
+getME(mod3, "theta")
 ```
