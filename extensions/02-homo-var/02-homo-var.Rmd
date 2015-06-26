@@ -91,3 +91,36 @@ mod1 <- mkMerMod(rho = environment(devianceFunction),
 mod1
 ```
 
+## Extension
+
+Modular call:
+
+```{r mod2_f}
+parsedFormula2 <- lFormula(formula = Reaction ~ Days + (Days|Subject),
+  data = sleepstudy)
+```
+
+```{r mod2_reTrms}
+parsedFormula2$reTrms <- within(parsedFormula2$reTrms, {
+  q <- nrow(Lambdat)
+
+  Lind <- rep(1, q)
+  Lambdat <- sparseMatrix(1:q, 1:q, x = Lind)
+  
+  theta <- 1
+})
+```
+
+```{r}
+devianceFunction2 <- do.call(mkLmerDevfun, parsedFormula2)
+
+optimizerOutput2 <- optimizeLmer(devianceFunction2)
+```
+
+
+```{r}
+start <- list(theta = as.numeric(getME(mod1, "theta")))
+  control <- lmerControl(optimizer = "none")
+```
+
+
