@@ -8,7 +8,7 @@ Andrey Ziyatdinov
 
 ```r
 library(lme4)
-library(solaris)
+library(lme4qtl)
 ```
 
 
@@ -54,12 +54,12 @@ tab
 ```
 ## Unit: milliseconds
 ##               expr      min       lq     mean   median       uq      max
-##                 m1 48.58241 49.56911 50.44976 50.00865 50.88206 54.18908
-##        m1.opt.none 40.64339 41.11479 43.28585 41.80860 46.32470 49.90008
-##          m1.update 49.44773 50.06004 52.78024 52.35340 54.89347 57.94328
-##           m1.start 48.39947 48.81600 50.73314 49.68118 53.13262 54.52046
-##          m1.start2 47.48920 48.21813 49.26506 49.02211 49.76483 52.64671
-##  m1.start.opt.none 39.76549 39.99929 43.10869 42.90461 45.37880 48.79881
+##                 m1 34.70588 35.04873 35.85028 35.21293 35.43481 41.81900
+##        m1.opt.none 29.51423 29.66837 30.61623 29.96862 30.25699 36.83185
+##          m1.update 35.89472 36.23624 36.65655 36.42146 36.76047 39.11307
+##           m1.start 34.04036 34.48707 35.89125 34.91659 37.44799 38.61308
+##          m1.start2 34.01843 34.08569 35.51000 34.48333 35.02715 40.95332
+##  m1.start.opt.none 28.74758 28.81002 29.97371 29.09829 31.99967 33.08563
 ##  neval
 ##     10
 ##     10
@@ -74,7 +74,7 @@ tab
 autoplot(tab)
 ```
 
-![](01-method-update_files/figure-html/plot_tab-1.png) 
+![](01-method-update_files/figure-html/plot_tab-1.png)<!-- -->
 
 ## Check model equvalence
 
@@ -208,7 +208,7 @@ tab2 <- microbenchmark(
 autoplot(tab2)
 ```
 
-![](01-method-update_files/figure-html/plot_tab2-1.png) 
+![](01-method-update_files/figure-html/plot_tab2-1.png)<!-- -->
 
 ### Model comparison
 
@@ -219,7 +219,7 @@ system.time(mod1 <- lmer(f1, sleepstudy))
 
 ```
 ##    user  system elapsed 
-##   0.049   0.000   0.049
+##   0.032   0.000   0.036
 ```
 
 ```r
@@ -228,7 +228,7 @@ system.time(mod2 <- relmatLmer(f1, sleepstudy, control = lmerControl(optimizer =
 
 ```
 ##    user  system elapsed 
-##    0.04    0.00    0.04
+##   0.032   0.000   0.030
 ```
 
 ```r
@@ -237,7 +237,7 @@ system.time(mod3 <- update(mod1, f1, control = lmerControl(optimizer = "none"), 
 
 ```
 ##    user  system elapsed 
-##   0.041   0.000   0.041
+##   0.028   0.000   0.031
 ```
 
 ```r

@@ -14,7 +14,7 @@ output:
 
 ```{r inc}
 library(lme4)
-library(solaris)
+library(lme4qtl)
 ```
 
 ```{r}
