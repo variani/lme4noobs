@@ -32,8 +32,8 @@ library(solarius)
 
 
 ```r
-h1 <- 0.25
-h2 <- 0.25
+h1 <- 0.5
+h2 <- 0.5
 rg <- 0.5
 re <- 0
 
@@ -44,7 +44,7 @@ h12
 ```
 
 ```
-[1] 0.125
+[1] 0.25
 ```
 
 ```r
@@ -309,17 +309,17 @@ mod
 
 ```
 Linear mixed model fit by REML ['lmerMod']
-REML criterion at convergence: 1329.186
+REML criterion at convergence: 1320.6
 Random effects:
  Groups   Name         Std.Dev. Corr
- ID       traity1      0.7713       
-          traity2      0.5191   0.18
- RID      dummy(trait) 0.5706       
- Residual              0.6349       
+ ID       traity1      0.7734       
+          traity2      0.5794   0.45
+ RID      dummy(trait) 0.5123       
+ Residual              0.6326       
 Number of obs: 468, groups:  ID, 234; RID, 234
 Fixed Effects:
 (Intercept)  
-  1.505e-17  
+   4.86e-17  
 ```
 
 ### Compare true vs. observed
@@ -347,18 +347,18 @@ data_frame(par = c("h1", "h2", "rg"),
 -----------------------
 par   true   observed  
 ----- ------ ----------
-h1    0.25   0.4495    
+h1    0.5    0.4745    
 
-h2    0.25   0.4007    
+h2    0.5    0.4562    
 
-rg    0.5    0.1821    
+rg    0.5    0.4524    
 -----------------------
 
 # Fit bi-variate model by SOLAR
 
 
 ```r
-solarPolygenic(y1 + y2 ~ 1, as.data.frame(dat))
+solarPolygenic(y1 + y2 ~ 1, as.data.frame(dat)) 
 ```
 
 ```
@@ -370,19 +370,19 @@ File polygenic.out:
 	Phenotypes:  dat.phe 
 	Trait:       y1 y2                 Individuals:  234 
  
-			 H2r(y1) is 0.0081407   
-	       H2r(y1) Std. Error:  0.1333013 
+			 H2r(y1) is 0.5656683   
+	       H2r(y1) Std. Error:  0.1626428 
  
-			 H2r(y2) is 0.2396594   
-	       H2r(y2) Std. Error:  0.1568553 
+			 H2r(y2) is 0.1604673   
+	       H2r(y2) Std. Error:  0.1518465 
  
-			 RhoE is 0.0270781   
-	       RhoE Std. Error:  0.1306835 
+			 RhoE is 0.0441958   
+	       RhoE Std. Error:  0.1854189 
  
-			 RhoG is -0.2694728 
-	       RhoG Std. Error:  3.2118026 
+			 RhoG is 0.5828165 
+	       RhoG Std. Error:  0.3626984 
  
-	       Derived Estimate of RhoP is 0.0116125 
+	       Derived Estimate of RhoP is 0.2022802 
  
  
 	Loglikelihoods and chi's are in y1.y2/polygenic.logs.out 

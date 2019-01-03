@@ -42,8 +42,8 @@ library(solarius)
 ## Parameters
 
 ```{r par}
-h1 <- 0.25
-h2 <- 0.25
+h1 <- 0.5
+h2 <- 0.5
 rg <- 0.5
 re <- 0
 
@@ -246,6 +246,6 @@ data_frame(par = c("h1", "h2", "rg"),
 
 # Fit bi-variate model by SOLAR
 
-```{r solar, cache = T}
-solarPolygenic(y1 + y2 ~ 1, as.data.frame(dat))
+```{r solar}
+solarPolygenic(y1 + y2 ~ 1, as.data.frame(dat)) 
 ```
