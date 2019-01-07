@@ -1,7 +1,7 @@
 ---
 title: "Bi-variate mixed models with lme4qtl"
 author: "Andrey Ziyatdinov"
-date: "`r Sys.Date()`"
+date: "2019-01-04"
 output:
   html_document:
     theme: united
@@ -12,56 +12,35 @@ output:
       in_header: header.html
 ---
 
-```{r options, echo = F}
-opts_chunk$set(dpi = 92,
-  fig.path = "figures/", fcacheig.path = "cache/",
-  comment = NA, results = 'markup', tidy = F, message = F, warning = F, echo = T, cache = F)
-```
 
-```{r inc, echo = F}
-library(magrittr)
-library(dplyr)
-library(tidyr)
 
-library(pander)
-panderOptions('table.continues', '')
-panderOptions('big.mark', ',')
-panderOptions('table.alignment.default', 'left')
-```
 
-```{r inc_sim}
+
+
+```r
 library(Matrix)
 library(MASS)
 
+library(lme4)
 library(lme4qtl)
 library(sommer)
 library(solarius)
 ```
 
-# Data simulations
+# Data
 
-## Parameters
 
-```{r par}
-h1 <- 0.5
-h2 <- 0.5
-rg <- 0.5
-re <- 0
-
-h12 <- rg * sqrt(h1) * sqrt(h2)
-e12 <- re * sqrt(1-h2) * sqrt(1-h2)
-
-h12
-e12
-```
-
-## Pre-defined kinship matrix
-
-```{r kin}
+```r
 data(dat40)
 N <- nrow(dat40)
 N
+```
 
+```
+[1] 234
+```
+
+```r
 # new ids
 ids <- dat40$ID
 
@@ -73,53 +52,17 @@ mat <- kin2[ids, ids]
 stopifnot(all(rownames(mat) == dat40$ID))
 
 dat40 <- within(dat40, RID <- ID)
-``` 
-
-## Function to simulate bi-variate
-
-```{r sim_bivar}
-sim_bivar <- function(h1, h2, rg, re, R = 1, scale = TRUE) 
-{
-  stopifnot(scale)
-  
-  h12 <- rg*sqrt(h1)*sqrt(h2)
-  Sigma_gen <- matrix(c(h1, h12, h12, h2), 2, 2)
-  V_gen <- kronecker(Sigma_gen, mat)
-
-  e12 <- re*sqrt(1-h2)*sqrt(1-h2)
-  Sigma_resid <- matrix(c(1-h1, e12, e12, 1-h2), 2, 2)
-  V_resid <- kronecker(Sigma_resid, Diagonal(N))
-
-  V <- V_gen + V_resid
-  
-  lapply(seq(1, R), function(r) {
-    y12 <- mvrnorm(1, rep(0, 2*N), V)
-    y1 <- y12[seq(1, N)] %>% scale %>% as.numeric
-    y2 <- y12[N + seq(1, N)] %>% scale %>% as.numeric
-
-    dat <-  dat40 %>% # dplyr::select(dat40, ID, RID)
-      mutate(y1 = y1, y2 = y2, rep = r)
-    rownames(dat) <- ids
-    
-    as_data_frame(dat)
-  }) %>% bind_rows
-}
 ```
 
-# Bi-variate model with no repetitions
-
-```{r bi_mod_norep}
-dat <- sim_bivar(h1, h2, rg, re)
-
-bdat <- gather(dat, trait, y, y1, y2)
-```
 
 ##  Build model by blocks
 
-```{r model_pars}
-#m <- relmatLmer(y ~ (0 + trait|ID) + (0 + dummy(trait)|RID), bdat, relmat = list(ID = kin2))
-formula <- y ~ (0 + trait|ID) + (0 + dummy(trait)|RID)
-data <- bdat
+
+```r
+#formula <- trait1 ~ AGE + SEX + (1|ID)
+formula <- trait1 ~ AGE + SEX + (0 + SEX|ID)
+
+data <- dat40
 relmat <- list(ID = kin2)
 
 control <- lmerControl()
@@ -130,43 +73,58 @@ control$checkControl$check.nobs.vs.nRE <- "ignore"
 
 ### Step 1
 
-```{r lmod}
+
+```r
 lmod <- lFormula(formula, data, control = control)
 ```
 
 Parse the result of Step 1:
 
-```{r lmod_res}
+
+```r
 flist <- lmod$reTrms[["flist"]]
 fnmns <- names(flist) 
 
 str(flist)
-fnmns
+```
 
+```
+List of 1
+ $ ID: Factor w/ 224 levels "ID101","ID102",..: 1 2 3 4 5 6 7 8 9 10 ...
+ - attr(*, "assign")= int 1
+```
+
+```r
+fnmns
+```
+
+```
+[1] "ID"
+```
+
+```r
 Ztlist <- lmod$reTrms[["Ztlist"]]
 ```
 
 ### Interim between Step 1 and Step 2
 
-```{r interim}
+
+```r
 i <- 1
 fn <- fnmns[i] # "ID"
 
 zn <- lmod$fr[, fn] # ID values: 101 102 103 104
 zn.unique <- levels(zn)
-obs <- rownames(lmod$fr)
+obs.unique <- rownames(lmod$fr)
 
 Zt <- Ztlist[[i]]
 rownames.Zt <- rownames(Zt) # rownames are (repeated) ID values: ID101 ID102 ID103...
 colnames.Zt <- colnames(Zt) # values are meaningless: "1" "2" "3", ..., but correspond to `zn`
 nrow.Zt <- nrow(Zt)
 ncol.Zt <- ncol(Zt)
-
-# update `colnames.Zt`: match `obs` & `zn`
-adat <- data.frame(obs = obs, zn = zn) # annotation `dat`
-zdat <- data.frame(obs = colnames.Zt)
-mdat <- merge(zdat, adat, by = "obs", all.x = TRUE) # merged `dat`
-colnames.Zt <- mdat$zn
+stopifnot(ncol.Zt == length(zn))
+stopifnot(all(rownames.Zt %in% zn.unique))
+stopifnot(all(colnames.Zt %in% obs.unique))
 
 Zt.unique <- Zt[zn.unique, obs.unique]
 
@@ -180,6 +138,9 @@ A <- Matrix::Matrix(A, sparse = TRUE)
 R <- relfac(A) # A = R' R 
 dim.R <- nrow(R) # nrow(R) = ncol(R)
 
+# new `Zt.unique` matrix, named as `Wt.unique`
+Wt.unique <- R %*% Zt.unique # Z* = Z L, then Z*' = L' Z' = R Z'
+
 if(nrow.Zt == dim.R & ncol.Zt == dim.R) {
   Wt <- Wt.unique
 } else {
@@ -189,7 +150,7 @@ if(nrow.Zt == dim.R & ncol.Zt == dim.R) {
   nrep.col <- ncol.Zt / dim.R
   
   ind.rows <- lapply(zn.unique, function(x) which(rownames.Zt == x)) 
-  ind.cols <- lapply(zn.unique, function(x) which(colnames.Zt == x)) 
+  ind.cols <- lapply(obs.unique, function(x) which(colnames.Zt == x)) 
   stopifnot(all(sapply(ind.rows, length) == nrep.row))
   stopifnot(all(sapply(ind.cols, length) == nrep.col))
   
@@ -211,24 +172,26 @@ lmod$reTrms[["Zt"]] <- do.call(rBind, Ztlist)
 
 Dummary check:
 
-```{r dummy_check}
-A[1:5, 1:5]
-crossprod(R)[1:5, 1:5]
-crossprod(Zt.unique)[1:5, 1:5]
-crossprod(Wt.unique)[1:5, 1:5]
 
+```r
+#A[1:5, 1:5]
+#crossprod(R)[1:5, 1:5]
+#crossprod(Zt)[1:5, 1:5]
+#crossprod(Wt)[1:5, 1:5]
 ```
 
 ### Step 2
 
-```{r dev}
+
+```r
 devfun <- do.call(mkLmerDevfun, c(lmod,
     list(control = control)))
 ```
 
 ### Step 3
 
-```{r opt}
+
+```r
 opt <- optimizeLmer(devfun,
   optimizer = control$optimizer,
   restart_edge = control$restart_edge,
@@ -240,19 +203,64 @@ opt <- optimizeLmer(devfun,
 
 ### Step 4
 
-```{r mod}
+
+```r
 mod <- mkMerMod(environment(devfun), opt, lmod$reTrms, fr = lmod$fr)
 ```
 
 ### Show the model
 
-```{r mod_show}
+
+```r
 mod
+```
+
+```
+Linear mixed model fit by REML ['lmerMod']
+REML criterion at convergence: 987.8249
+Random effects:
+ Groups   Name Std.Dev. Corr
+ ID       SEX1 1.454        
+          SEX2 2.068    0.67
+ Residual      1.468        
+Number of obs: 224, groups:  ID, 224
+Fixed Effects:
+(Intercept)          AGE         SEX2  
+    7.47158      0.01122     -0.50887  
+```
+
+
+```r
+(mod0 <- relmatLmer(formula, dat40, relmat = list(ID = kin2)))
+```
+
+```
+Linear mixed model fit by REML ['lmerMod']
+Formula: trait1 ~ AGE + SEX + (0 + SEX | ID)
+   Data: dat40
+REML criterion at convergence: 987.8249
+Random effects:
+ Groups   Name Std.Dev. Corr
+ ID       SEX1 1.454        
+          SEX2 2.068    0.67
+ Residual      1.468        
+Number of obs: 224, groups:  ID, 224
+Fixed Effects:
+(Intercept)          AGE         SEX2  
+    7.47158      0.01122     -0.50887  
+```
+
+```r
+stopifnot(all.equal(getME(mod, "Ztlist")[[1]]@x, getME(mod0, "Ztlist")[[1]]@x))
+stopifnot(all.equal(getME(mod, "Ztlist")[[1]]@Dimnames[[1]], getME(mod0, "Ztlist")[[1]]@Dimnames[[1]]))
+stopifnot(all.equal(getME(mod, "Ztlist")[[1]]@Dimnames[[2]], getME(mod0, "Ztlist")[[1]]@Dimnames[[2]]))
+stopifnot(all.equal(logLik(mod0), logLik(mod)))
 ```
 
 ### Compare true vs. observed
 
-```{r vf}
+
+```r
 vf <- VarCorr(mod) %>% as.data.frame
 
 h1.obs <- vf[1, "vcov"]
@@ -272,6 +280,7 @@ data_frame(par = c("h1", "h2", "rg"),
 
 # Fit bi-variate model by SOLAR
 
-```{r solar}
+
+```r
 solarPolygenic(y1 + y2 ~ 1, as.data.frame(dat)) 
 ```

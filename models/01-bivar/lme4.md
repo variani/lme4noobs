@@ -1,7 +1,7 @@
 ---
 title: "Bi-variate mixed models with lme4qtl"
 author: "Andrey Ziyatdinov"
-date: "2019-01-03"
+date: "2019-01-04"
 output:
   html_document:
     theme: united
@@ -182,16 +182,22 @@ i <- 1
 fn <- fnmns[i] # "ID"
 
 zn <- lmod$fr[, fn] # ID values: 101 102 103 104
-zn.unique <- unique(zn) 
+zn.unique <- levels(zn)
+obs <- rownames(lmod$fr)
 
 Zt <- Ztlist[[i]]
-zlvl <- rownames(Zt) # rownames are (repeated) ID values: ID101 ID102 ID103...
-zobs <- colnames(Zt) # values are meaningless: "1" "2" "3", ..., but correspond to `zn`
-stopifnot(length(zobs) == length(zn))
+rownames.Zt <- rownames(Zt) # rownames are (repeated) ID values: ID101 ID102 ID103...
+colnames.Zt <- colnames(Zt) # values are meaningless: "1" "2" "3", ..., but correspond to `zn`
+nrow.Zt <- nrow(Zt)
+ncol.Zt <- ncol(Zt)
 
-rows <- sapply(zn.unique, function(x) which(zlvl == x)%>% head(1))
-cols <- sapply(zn.unique, function(x) which(zn == x) %>% head(1))
-Zt.unique <- Zt[rows, cols]
+# match colnames.Zt and `obs` & update `colnames.Zt`
+adat <- data.frame(obs = obs, zn = zn) # annotation `dat`
+zdat <- data.frame(obs = colnames.Zt)
+mdat <- merge(zdat, adat, by = "obs", all.x = TRUE) # merged `dat`
+colnames.Zt <- mdat$zn
+
+Zt.unique <- Zt[zn.unique, obs.unique]
 
 reln <- rownames(relmat[[fn]])
 stopifnot(!is.null(reln))
@@ -199,18 +205,37 @@ stopifnot(all(zn.unique %in% reln))
 
 A <- relmat[[fn]][zn.unique, zn.unique]
 A <- Matrix::Matrix(A, sparse = TRUE)
-R <- relfac(A, "evd") # A = R' R 
 
-# new `Zt.unique` matrix, named as `Wt.unique`
-Wt.unique <- R %*% Zt.unique # Z* = Z L, then Z*' = L' Z' = R Z'
+R <- relfac(A) # A = R' R 
+dim.R <- nrow(R) # nrow(R) = ncol(R)
 
-rows <- sapply(zlvl, function(x) which(zn.unique == x))
-cols <- sapply(zn, function(x) which(zn.unique == x)) # zobs or colnames(Zt) corresponds to `zn`
-Wt <- Wt.unique[rows, cols]
+if(nrow.Zt == dim.R & ncol.Zt == dim.R) {
+  Wt <- Wt.unique
+} else {
+  stopifnot(!(nrow.Zt %% dim.R))
+  stopifnot(!(ncol.Zt %% dim.R))
+  nrep.row <- nrow.Zt / dim.R
+  nrep.col <- ncol.Zt / dim.R
+  
+  ind.rows <- lapply(zn.unique, function(x) which(rownames.Zt == x)) 
+  ind.cols <- lapply(zn.unique, function(x) which(colnames.Zt == x)) 
+  stopifnot(all(sapply(ind.rows, length) == nrep.row))
+  stopifnot(all(sapply(ind.cols, length) == nrep.col))
+  
+  Wt <- Zt
+  for(ir in seq(1, nrep.row)) {
+    for(ic in seq(1, nrep.col)) {
+      rows <- sapply(ind.rows, function(x) x[ir])
+      cols <- sapply(ind.cols, function(x) x[ic])
+      Wt[rows, cols] <- R %*% Wt[rows, cols]
+    }
+  }
+}
 
 # write updated matrices back to model
 Ztlist[[i]] <- Wt
 lmod$reTrms[["Ztlist"]] <- Ztlist
+lmod$reTrms[["Zt"]] <- do.call(rBind, Ztlist)
 ```
 
 Dummary check:
@@ -237,8 +262,8 @@ crossprod(R)[1:5, 1:5]
 ```
 5 x 5 sparse Matrix of class "dsCMatrix"
       ID101 ID102 ID103 ID104 ID105
-ID101   1.0   0.0   0.5   0.5   0.5
-ID102   0.0   1.0   0.5   0.5   0.5
+ID101   1.0   .     0.5   0.5   0.5
+ID102   .     1.0   0.5   0.5   0.5
 ID103   0.5   0.5   1.0   0.5   0.5
 ID104   0.5   0.5   0.5   1.0   0.5
 ID105   0.5   0.5   0.5   0.5   1.0
@@ -265,8 +290,8 @@ crossprod(Wt.unique)[1:5, 1:5]
 ```
 5 x 5 sparse Matrix of class "dsCMatrix"
     1   2   3   4   5
-1 1.0 0.0 0.5 0.5 0.5
-2 0.0 1.0 0.5 0.5 0.5
+1 1.0 .   0.5 0.5 0.5
+2 .   1.0 0.5 0.5 0.5
 3 0.5 0.5 1.0 0.5 0.5
 4 0.5 0.5 0.5 1.0 0.5
 5 0.5 0.5 0.5 0.5 1.0
@@ -309,17 +334,17 @@ mod
 
 ```
 Linear mixed model fit by REML ['lmerMod']
-REML criterion at convergence: 1320.6
+REML criterion at convergence: 1279.61
 Random effects:
- Groups   Name         Std.Dev. Corr
- ID       traity1      0.7734       
-          traity2      0.5794   0.45
- RID      dummy(trait) 0.5123       
- Residual              0.6326       
+ Groups   Name         Std.Dev.  Corr
+ ID       traity1      6.129e-01     
+          traity2      6.563e-01 0.56
+ RID      dummy(trait) 5.931e-08     
+ Residual              7.650e-01     
 Number of obs: 468, groups:  ID, 234; RID, 234
 Fixed Effects:
 (Intercept)  
-   4.86e-17  
+  -0.002342  
 ```
 
 ### Compare true vs. observed
@@ -347,11 +372,11 @@ data_frame(par = c("h1", "h2", "rg"),
 -----------------------
 par   true   observed  
 ----- ------ ----------
-h1    0.5    0.4745    
+h1    0.5    0.3909    
 
-h2    0.5    0.4562    
+h2    0.5    0.424     
 
-rg    0.5    0.4524    
+rg    0.5    0.5605    
 -----------------------
 
 # Fit bi-variate model by SOLAR
@@ -370,19 +395,19 @@ File polygenic.out:
 	Phenotypes:  dat.phe 
 	Trait:       y1 y2                 Individuals:  234 
  
-			 H2r(y1) is 0.5656683   
-	       H2r(y1) Std. Error:  0.1626428 
+			 H2r(y1) is 0.2323859   
+	       H2r(y1) Std. Error:  0.1559749 
  
-			 H2r(y2) is 0.1604673   
-	       H2r(y2) Std. Error:  0.1518465 
+			 H2r(y2) is 0.4208393   
+	       H2r(y2) Std. Error:  0.1635536 
  
-			 RhoE is 0.0441958   
-	       RhoE Std. Error:  0.1854189 
+			 RhoE is -0.0832078   
+	       RhoE Std. Error:  0.1840403 
  
-			 RhoG is 0.5828165 
-	       RhoG Std. Error:  0.3626984 
+			 RhoG is 0.9497665 
+	       RhoG Std. Error:  0.3123918 
  
-	       Derived Estimate of RhoP is 0.2022802 
+	       Derived Estimate of RhoP is 0.2415362 
  
  
 	Loglikelihoods and chi's are in y1.y2/polygenic.logs.out 
